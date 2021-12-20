@@ -1,5 +1,4 @@
 import java.io.*;
-import java.lang.reflect.Field;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 import java.util.Scanner;
@@ -16,7 +15,6 @@ public class StoredData {
 
     public static void main(String[] args) throws NoSuchAlgorithmException, InvalidKeySpecException, InterruptedException {
         int iterations = 0;
-        long minutes;
 
         /* This thread determines in the background how many iterations should be set for each machine */
         Thread thread = new Thread(() -> {
@@ -42,30 +40,44 @@ public class StoredData {
 
         /* Encrypt and lock data */
         if(encryptOrDecrypt.equals("encrypt")) {
-
             userInput = new Scanner(System.in);
 
             System.out.print("Enter data to be encrypted: ");
             plainText = userInput.nextLine();
 
-            System.out.print("Enter time delay to decrypt (minutes): ");
-            minutes = Long.parseLong(userInput.nextLine());
+            System.out.print("Enter decryption delay as \"x minutes\" or \"x seconds\": ");
+            long delay = userInput.nextLong();
+            String delayUnits = userInput.nextLine();
 
-            thread.join();
-            iterations = (int) Math.round((minutes * (iterationsPerSecond * 60)));
-            String key = getKeyFromPBKDF2(password, iterations);
-            textEncryptor.setPassword(key);
+            if(delayUnits.contains("minutes") || delayUnits.contains("seconds")) {
+                long duration = delayUnits.contains("minutes") ? delay * 60 : delay;
 
-            cipherText = textEncryptor.encrypt(minutes + ":" + plainText);
-            userInput.close();
+                thread.join();
 
-            try {
-                FileWriter fw = new FileWriter(file);
-                fw.write(password + "\n" + iterations + "\n" + cipherText);
-                System.out.println("Text has been encrypted. Run the program again to decrypt.");
-                fw.close();
-            } catch (Exception e) {
-                e.printStackTrace();
+                Thread displayTimeRemaining = new Thread(() -> startTimer(duration));
+
+                System.out.println("Encrypting...");
+                displayTimeRemaining.start();
+
+                iterations = (int) (duration * (iterationsPerSecond));
+                String key = getKeyFromPBKDF2(password, iterations);
+                textEncryptor.setPassword(key);
+
+                cipherText = textEncryptor.encrypt(plainText);
+                userInput.close();
+
+                try {
+                    FileWriter fw = new FileWriter(file);
+                    fw.write(password + "\n" + iterations + "\n" + cipherText);
+                    displayTimeRemaining.join();
+                    System.out.println("Text has been encrypted. Run the program again to decrypt.");
+                    fw.close();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+            else {
+                System.out.println("Invalid input. Type \"x minutes\" or \" x seconds\" next time!");
             }
         }
         /* Unlock and decrypt data */
@@ -82,14 +94,20 @@ public class StoredData {
                 e.printStackTrace();
             }
 
+            thread.join();
+
+            int finalIterations = iterations;
+            Thread displayTimeRemaining = new Thread(() -> {
+                System.out.println("Decrypting...");
+                startTimer((long) (finalIterations / iterationsPerSecond));
+            });
+            displayTimeRemaining.start();
+
             String key = getKeyFromPBKDF2(password, iterations);
             textEncryptor.setPassword(key);
-            String[] combinedPlainText = textEncryptor.decrypt(cipherText).split(":");
-            minutes = Long.parseLong(combinedPlainText[0]);
-            plainText = combinedPlainText[1];
+            plainText = textEncryptor.decrypt(cipherText);
 
-//            startTimer(minutes);
-            System.out.println("\n" + "Decrypted data: " + plainText);
+            System.out.println("Decrypted data: " + plainText);
         }
         else {
             System.out.println("Invalid input. Type \"encrypt\" or \"decrypt\" next time!");
@@ -114,18 +132,17 @@ public class StoredData {
         return iterations / (duration / 1000.0);
     }
 
-    public static void startTimer(Long minutes) {
+    public static void startTimer(Long seconds) {
         double curTimeSeconds = (System.currentTimeMillis() / 1000.0);
-        double endTimeSeconds = curTimeSeconds + (minutes * 60);
-
-        System.out.println("Unlock timer started!");
+        double endTimeSeconds = curTimeSeconds + seconds;
 
         while(curTimeSeconds <= endTimeSeconds) {
             if(curTimeSeconds < (System.currentTimeMillis() / 1000.0)) {
-                System.out.print("\r" + (endTimeSeconds - curTimeSeconds) + " seconds remaining");
+                System.out.print("\r" + Math.round(endTimeSeconds - curTimeSeconds) + " seconds remaining");
                 curTimeSeconds = (System.currentTimeMillis() / 1000.0);
             }
         }
+        System.out.print("\r0 seconds remaining\n");
     }
 
     public static String getKeyFromPBKDF2(String passwordString, int iterations) throws NoSuchAlgorithmException, InvalidKeySpecException {
