@@ -15,7 +15,19 @@ public class StoredData {
     private static double iterationsPerSecond;
 
     public static void main(String[] args) throws NoSuchAlgorithmException, InvalidKeySpecException, InterruptedException {
-        runBackgroundTasks();
+        int iterations = 0;
+        long minutes;
+
+        /* This thread determines in the background how many iterations should be set for each machine */
+        Thread thread = new Thread(() -> {
+            try {
+                iterationsPerSecond = calcIterationsPerSecond();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+
+        thread.start();
 
         AES256TextEncryptor textEncryptor = new AES256TextEncryptor();
         String password = Double.toString(Math.random());
@@ -25,7 +37,6 @@ public class StoredData {
         String encryptOrDecrypt = userInput.nextLine();
 
         File file = new File("out.txt");
-        long minutes;
         String plainText;
         String cipherText = "";
 
@@ -40,7 +51,9 @@ public class StoredData {
             System.out.print("Enter time delay to decrypt (minutes): ");
             minutes = Long.parseLong(userInput.nextLine());
 
-            String key = getKeyFromPBKDF2(password);
+            thread.join();
+            iterations = (int) Math.round((minutes * (iterationsPerSecond * 60)));
+            String key = getKeyFromPBKDF2(password, iterations);
             textEncryptor.setPassword(key);
 
             cipherText = textEncryptor.encrypt(minutes + ":" + plainText);
@@ -48,7 +61,7 @@ public class StoredData {
 
             try {
                 FileWriter fw = new FileWriter(file);
-                fw.write(password + "\n" + cipherText);
+                fw.write(password + "\n" + iterations + "\n" + cipherText);
                 System.out.println("Text has been encrypted. Run the program again to decrypt.");
                 fw.close();
             } catch (Exception e) {
@@ -62,13 +75,14 @@ public class StoredData {
             try {
                 Scanner fileScanner = new Scanner(file);
                 password = fileScanner.nextLine();
+                iterations = Integer.parseInt(fileScanner.nextLine());
                 cipherText = fileScanner.nextLine();
                 fileScanner.close();
             } catch (Exception e) {
                 e.printStackTrace();
             }
 
-            String key = getKeyFromPBKDF2(password);
+            String key = getKeyFromPBKDF2(password, iterations);
             textEncryptor.setPassword(key);
             String[] combinedPlainText = textEncryptor.decrypt(cipherText).split(":");
             minutes = Long.parseLong(combinedPlainText[0]);
@@ -114,27 +128,14 @@ public class StoredData {
         }
     }
 
-    public static String getKeyFromPBKDF2(String passwordString) throws NoSuchAlgorithmException, InvalidKeySpecException {
+    public static String getKeyFromPBKDF2(String passwordString, int iterations) throws NoSuchAlgorithmException, InvalidKeySpecException {
         char[] passwordArray = passwordString.toCharArray();
         byte[] salt = passwordString.getBytes();
-        int iterations = 1000;
         int keyLength = 512;
 
         PBEKeySpec spec = new PBEKeySpec(passwordArray, salt, iterations, keyLength);
         SecretKeyFactory skf = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1");
         byte[] hash = skf.generateSecret(spec).getEncoded();
         return new String(Hex.encodeHex(hash));
-    }
-
-    public static void runBackgroundTasks() {
-        /* This thread determines in the background how many iterations should be set for each machine */
-        new Thread(() -> {
-            try {
-                iterationsPerSecond = calcIterationsPerSecond();
-
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        });
     }
 }
