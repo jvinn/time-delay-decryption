@@ -10,7 +10,7 @@ import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 
 /* Encrypted data is stored in a .txt so the program doesn't need to be running constantly to store ciphertext */
-public class StoredData {
+public class DelayedDecryption {
     private static double iterationsPerSecond;
 
     public static void main(String[] args) throws NoSuchAlgorithmException, InvalidKeySpecException, InterruptedException {

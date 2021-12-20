@@ -5,7 +5,7 @@ import java.security.spec.InvalidKeySpecException;
 import org.apache.commons.codec.binary.Hex;
 
 
-public class PBKDF2_Test {
+public class SimplePBKDF2 {
     public static void main(String[] args) throws NoSuchAlgorithmException, InvalidKeySpecException {
         char[] password = "test".toCharArray();
         byte[] salt = "test".getBytes();
