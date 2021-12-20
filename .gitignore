@@ -11,3 +11,7 @@
 *.txt
 *.ser
 src/main/java/DecryptTest.java
+/government_secrets/
+/nuclear_weapon_blueprints/
+/scandalous_files/
+
